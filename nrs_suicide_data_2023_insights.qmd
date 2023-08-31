@@ -1,0 +1,39 @@
+---
+title: "NRS suicide data 2023 insights"
+author: "Jan Savinc"
+format: html
+editor_options: 
+  chunk_output_type: console
+---
+
+
+# Packages
+
+```{r}
+require(pacman)
+pacman::p_load(
+  "tidyverse",
+  "readxl"
+)
+```
+
+
+# Load data
+  
+Note: this is based on the 2022 data release, reporting on probable deaths by suicide up to 2021.
+I'm assuming the 2023 format will be the same as 2022, so I can swap out for the later file once it's released here.
+
+```{r}
+url_2022 <- "https://www.nrscotland.gov.uk/files//statistics/probable-suicides/2021/suicides-21-all-tabs.xlsx"
+
+# TODO: change once it's available!
+url_2023 <- "https://www.nrscotland.gov.uk/files//statistics/probable-suicides/2022/suicides-22-all-tabs.xlsx"
+
+if (!dir.exists("./data/")) dir.create("./data")
+
+download.file(url = url_2022, destfile = file.path("./data", basename(url_2022)), mode = "wb")
+
+# TODO: load separate sheets as required
+data_2022 <- read_excel(path = file.path("./data", basename(url_2022)))
+```
+
