@@ -13,12 +13,13 @@ editor_options:
 require(pacman)
 pacman::p_load(
   "tidyverse",
-  "readxl"
+  "readxl",
+  "janitor"
 )
 ```
 
 
-# Load data
+# Download data
   
 Note: this is based on the 2022 data release, reporting on probable deaths by suicide up to 2021.
 I'm assuming the 2023 format will be the same as 2022, so I can swap out for the later file once it's released here.
@@ -34,6 +35,60 @@ if (!dir.exists("./data/")) dir.create("./data")
 download.file(url = url_2022, destfile = file.path("./data", basename(url_2022)), mode = "wb")
 
 # TODO: load separate sheets as required
-data_2022 <- read_excel(path = file.path("./data", basename(url_2022)))
+# data_2022 <- read_excel(path = file.path("./data", basename(url_2022)))
+
+path_to_data <- file.path("./data", basename(url_2022))
+```
+
+# Load individual sheets
+
+```{r}
+# TODO: change this to reflect 2022 additional data
+table_1 <- 
+  read_excel(path_to_data, sheet = "Table_1", range = "A5:P53") %>%
+  clean_names
+```
+
+# 'Chart 1' / age-standardised mortality rate by sex
+
+```{r}
+age_sex_standardided_mort <-
+  table_1 %>%
+  pivot_longer(
+    cols = 
+      c(
+        age_standardised_mortality_rate_persons,
+        age_standardised_mortality_rate_females,
+        age_standardised_mortality_rate_males
+      ),
+    names_to = "sex", values_to = "asmr", names_transform = ~str_extract(.x, pattern = "(persons|males|females)$")
+  ) %>%
+  select(year, sex, asmr) %>%
+  distinct %>%
+  mutate(
+    year = as.integer(year),
+    sex = factor(sex, levels = c("persons","males","females"))
+    ) %>%
+  filter(!is.na(asmr))
+  
+(chart_1 <- 
+  ggplot(
+    data = age_sex_standardided_mort,
+    aes(x = year, y = asmr, colour = sex)
+  ) +
+    geom_line() +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 90)) +
+    # TODO: work out a good number of years to put on the x axis!
+    scale_x_discrete(limits = 1994:max(age_sex_standardided_mort$year)) +
+    scale_y_continuous(breaks = scales::pretty_breaks(n = 6), limits = c(0,NA)) +
+    scale_colour_manual(values = c("black","red","blue"), labels = c("All", "Male", "Female")) +
+    labs(
+      title = "Chart 1. Suicide rates, Scotland, all ages",
+      subtitle = "Source: NRS",
+      y = "Age-sex standardised rate per 100,000",
+      x = NULL
+      )
+)
 ```
 
