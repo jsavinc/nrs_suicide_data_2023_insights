@@ -75,22 +75,23 @@ create_five_year_periods <- function(year_variable) {
 
 # Download data
   
-Note: this is based on the 2022 data release, reporting on probable deaths by suicide up to 2021.
-I'm assuming the 2023 format will be the same as 2022, so I can swap out for the later file once it's released here.
+~~Note: this is based on the 2022 data release, reporting on probable deaths by suicide up to 2021.
+I'm assuming the 2023 format will be the same as 2022, so I can swap out for the later file once it's released here.~~
+
+This is now based on the 2023 release (data up to 2022).
 
 ```{r}
-url_2022 <- "https://www.nrscotland.gov.uk/files//statistics/probable-suicides/2021/suicides-21-all-tabs.xlsx"
+# url_2022 <- "https://www.nrscotland.gov.uk/files//statistics/probable-suicides/2021/suicides-21-all-tabs.xlsx"
 
-# TODO: change to 2023 once it's available!
 url_2023 <- "https://www.nrscotland.gov.uk/files//statistics/probable-suicides/2022/suicides-22-all-tabs.xlsx"
 
 if (!dir.exists("./data/")) dir.create("./data")
 
-if (!file.exists(file.path("./data", basename(url_2022)))) {
-download.file(url = url_2022, destfile = file.path("./data", basename(url_2022)), mode = "wb")
+if (!file.exists(file.path("./data", basename(url_2023)))) {
+download.file(url = url_2023, destfile = file.path("./data", basename(url_2023)), mode = "wb")
 }
 
-path_to_data <- file.path("./data", basename(url_2022))
+path_to_data <- file.path("./data", basename(url_2023))
 ```
 
 # Load data
@@ -160,18 +161,27 @@ table_3b <-
   select(-year) %>%
   relocate(year_5)
 
-five_year_averages <- table_3b %>%
+table_4b <- 
+  read_excel(path_to_data, sheet = "Table_4B", skip = 4) %>%
+  clean_names %>%
+  mutate(
+    year_5 = str_replace_all(year, pattern = "to", replacement = "-") %>%
+      factor,
+  ) %>% 
+  select(-year) %>%
+  relocate(year_5)
+
+
+five_year_averages <- 
+  table_3b %>%
   filter(health_board == "Scotland") %>%
   select(-health_board) %>%
-  mutate(sex = factor("Persons",levels = c("Persons","Males","Females")))  # TODO: replace with pivot_longer below once sex is added to data
-  # pivot_longer(cols = c(age_standardised_mortality_rate_persons, age_standardised_mortality_rate_males, age_standardised_mortality_rate_females), names_to = "sex", values_to = "asmr", names_transform = ~str_extract(.x, pattern = "(persons|males|females)$")) %>%
-  # mutate(sex = factor(sex, levels = c("persons","males","females")))
+  mutate(sex = factor(sex,levels = c("Persons","Males","Females")))
 
 (fig_five_year_averages <- 
   ggplot(
     data = five_year_averages,
-    # TODO: replace with asmr
-    aes(x = year_5, y = age_standardised_mortality_rate_persons, colour = sex, group = sex)
+    aes(x = year_5, y = age_standardised_mortality_rate, colour = sex, group = sex)
   ) +
     geom_line() +
     theme_minimal() +
@@ -190,7 +200,66 @@ five_year_averages <- table_3b %>%
 
 five_year_averages %>%
   output_table_with_csv_button(filename = "five_year_averages", caption = "Five year averages of age-standardised mortality rate fue to probable suicide.") %>%
-  DT::formatRound(columns = 2:4, digits = 2)
+  DT::formatRound(columns = 3:5, digits = 2)
+```
+
+# Five-year average by HB
+
+```{r}
+five_year_averages_hb <-
+  table_3b %>%
+  mutate(sex = factor(sex,levels = c("Persons","Males","Females")))
+
+
+(fig_five_year_averages_hb <- 
+  ggplot(
+    data = five_year_averages_hb,
+    aes(x = year_5, y = age_standardised_mortality_rate, colour = sex, group = sex)
+  ) +
+    geom_line() +
+    theme_minimal() +
+    facet_wrap(~health_board, scales ="free_y") +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+    # TODO: is this x scale too crowded in the rendered doc?
+    # scale_x_discrete(breaks = levels(five_year_averages$year_5)[seq.int(from=1,to=17,by=2)]) +
+    scale_y_continuous(breaks = scales::pretty_breaks(n = 6), limits = c(0,NA)) +
+    scale_colour_manual(values = c("black","red","blue"), labels = c("All", "Male", "Female")) +
+    labs(
+      title = "5-year average suicide rates, Scotland, all ages",
+      subtitle = "Source: NRS",
+      y = "5-year average age-sex standardised rate per 100,000",
+      x = NULL
+      )
+)
+```
+
+# Five-year average by LA
+
+```{r}
+five_year_averages_la <-
+  table_4b %>%
+  mutate(sex = factor(sex,levels = c("Persons","Males","Females")))
+
+(fig_five_year_averages_la <- 
+  ggplot(
+    data = five_year_averages_la,
+    aes(x = year_5, y = age_standardised_mortality_rate, colour = sex, group = sex)
+  ) +
+    geom_line() +
+    theme_minimal() +
+    facet_wrap(~council_area, scales ="free_y") +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+    # TODO: is this x scale too crowded in the rendered doc?
+    # scale_x_discrete(breaks = levels(five_year_averages$year_5)[seq.int(from=1,to=17,by=2)]) +
+    scale_y_continuous(breaks = scales::pretty_breaks(n = 6), limits = c(0,NA)) +
+    scale_colour_manual(values = c("black","red","blue"), labels = c("All", "Male", "Female")) +
+    labs(
+      title = "5-year average suicide rates, Scotland, all ages",
+      subtitle = "Source: NRS",
+      y = "5-year average age-sex standardised rate per 100,000",
+      x = NULL
+      )
+)
 ```
 
 
@@ -235,6 +304,7 @@ crude_rate_by_age_group_by_year <-
       )
   })
 
+
 crude_rate_by_age_group_by_five_years <-
   map_dfr(
     .x = min(crude_rate_by_age_group_by_year$year) : (max(crude_rate_by_age_group_by_year$year)-4),
@@ -278,7 +348,7 @@ twenty_years_before_5_year_group <- paste0(
 ```
 
 
-# Ratio of most deprived SIMD to least deprived
+# Ratio of most deprived SIMD to least deprived, annual data
 
 This is computed from quintiles 1 (most deprived) & 5 (least deprived) in Table 5.
 
@@ -303,10 +373,6 @@ ratio_simd_most_to_least_deprived <-
   arrange(sex)
 
 
-ratio_simd_most_to_least_deprived %>%
-  output_table_with_csv_button(filename = "ratio_simd_most_to_least_deprived", caption = "Ratio of sex-specific age standardised mortality rate (ASMR) in most deprived SIMD quintile (1) to least deprived quintile (5).") %>%
-  DT::formatRound(columns = 3:4, digits = 2)
-
 
 (fig_ratio_simd <-
   ggplot(data = ratio_simd_most_to_least_deprived, aes(x=year, y=ratio_asmr, colour=sex)) +
@@ -314,7 +380,7 @@ ratio_simd_most_to_least_deprived %>%
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
   scale_x_continuous(limits = c(2001,max(ratio_simd_most_to_least_deprived$year)), breaks = seq.int(2001, 2023, by = 2)) +  # eh, good enough
-  scale_y_continuous(breaks = scales::pretty_breaks(n = 6), limits = c(0,NA)) +
+  scale_y_continuous(breaks = scales::pretty_breaks(n = 6)) +
   scale_colour_manual(values = c("black","red","blue"), labels = c("All", "Male", "Female")) +
     labs(
       x = NULL, 
@@ -323,7 +389,93 @@ ratio_simd_most_to_least_deprived %>%
       subtitle = "Source: NRS"
       )
 )
+
+ratio_simd_most_to_least_deprived %>%
+  output_table_with_csv_button(filename = "ratio_simd_most_to_least_deprived", caption = "Ratio of sex-specific age standardised mortality rate (ASMR) in most deprived SIMD quintile (1) to least deprived quintile (5).") %>%
+  DT::formatRound(columns = 3:4, digits = 2)
 ```
+
+
+# Ratio of most deprived SIMD to least deprived, 5-year averages
+
+```{r}
+ratio_simd_most_to_least_deprived_5_year <-
+  map_dfr(
+    .x = min(ratio_simd_most_to_least_deprived$year) : (max(ratio_simd_most_to_least_deprived$year)-4),
+    .f = function(year_start) {
+      table_5 %>%
+        filter(year %in% year_start:(year_start+4)) %>%
+        group_by(sex) %>%
+        summarise(
+          year_5 = paste0(year_start,"-",year_start+4),
+          asmr_most_deprived = mean(age_standardised_rate_of_mortality_asmr[simd_quintile==1]),
+          asmr_least_deprived = mean(age_standardised_rate_of_mortality_asmr[simd_quintile==5]),
+          ratio_asmr = asmr_most_deprived / asmr_least_deprived,
+          raio_deaths = mean(deaths[simd_quintile==1]) / mean(deaths[simd_quintile==5]),
+          .groups = "drop"
+          )
+    }
+  ) %>%
+  relocate(year_5) %>%
+  arrange(sex)
+
+(fig_ratio_simd_5_year <-
+  ggplot(data = ratio_simd_most_to_least_deprived_5_year, aes(x=year_5, y=ratio_asmr, colour=sex, group = sex)) +
+  geom_line() +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1), legend.title = element_blank()) +
+  scale_y_continuous(breaks = scales::breaks_pretty(n = 6)) +
+  scale_colour_manual(values = c("black","red","blue"), labels = c("All", "Male", "Female")) +
+    labs(
+      x = NULL, 
+      y = "Ratio of most to least deprived SIMD", 
+      title = str_wrap("Ratio of five-year average age-standardised mort. ratio (ASMR) of most deprived to least deprived SIMD quintile"),
+      subtitle = "Source: NRS"
+      )
+)
+
+ratio_simd_most_to_least_deprived_5_year %>%
+  output_table_with_csv_button(filename = "ratio_simd_most_to_least_deprived_5_year_average", caption = "Ratio of five-year average sex-specific age standardised mortality rate (ASMR) in most deprived SIMD quintile (1) to least deprived quintile (5).") %>%
+  DT::formatRound(columns = 3:6, digits = 2)
+```
+
+
+# Average age at death by suicide over time
+
+```{r}
+table_2a <-
+  read_excel(path_to_data, sheet = "Table_2A", skip = 4) %>%
+  clean_names %>%
+  mutate(
+    sex = factor(sex, levels = c("Persons", "Males", "Females"))
+  )
+
+age_at_death <-
+  table_2a %>%
+  select(year,sex,average_age_at_death)
+
+(fig_age_at_death <-
+  ggplot(data = age_at_death, aes(x=year, y=average_age_at_death, colour=sex, group = sex)) +
+  geom_line() +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1), legend.title = element_blank()) +
+  scale_x_continuous(limits = range(age_at_death$year), breaks = scales::breaks_pretty(n = 20)) +  # eh, good enough
+  scale_y_continuous(breaks = scales::pretty_breaks(n = 6)) +
+  scale_colour_manual(values = c("black","red","blue"), labels = c("All", "Male", "Female")) +
+    labs(
+      x = NULL, 
+      y = "Average age at death", 
+      title = str_wrap("Average age at death by suicide over time, by sex"),
+      subtitle = "Source: NRS"
+      )
+)
+
+age_at_death %>%
+  pivot_wider(names_from = sex, values_from = average_age_at_death) %>%
+  output_table_with_csv_button(filename = "average_age_at_death", caption = "Average age at death by suicide over time, by sex") %>%
+  DT::formatRound(columns = 2:4, digits = 2)
+```
+
 
 
 # Summaries of changes from last year
@@ -336,13 +488,6 @@ last_year <- this_year - 1
 ## By sex & age group
 
 ```{r}
-crude_rate_by_age_group_by_year %>%
-  filter(year %in% c(last_year, this_year)) %>%
-  pivot_wider(names_from = age_group_new, values_from = crude_rate) %>%
-  arrange(sex) %>%
-  output_table_with_csv_button(filename = paste0("crude_rate_by_age_group_and_sex","_",last_year,"_",this_year), caption = "Crude rate of deaths by 100,000 population by age group & sex, comparing this year & last.") %>%
-  DT::formatRound(columns = 3:11, digits = 2)
-
 (fig_changes_age_group_sex <-
   crude_rate_by_age_group_by_year %>%
   filter(year %in% c(last_year, this_year)) %>%
@@ -362,17 +507,18 @@ crude_rate_by_age_group_by_year %>%
       subtitle = "Source: NRS"
       )
 )
+
+crude_rate_by_age_group_by_year %>%
+  filter(year %in% c(last_year, this_year)) %>%
+  pivot_wider(names_from = age_group_new, values_from = crude_rate) %>%
+  arrange(sex) %>%
+  output_table_with_csv_button(filename = paste0("crude_rate_by_age_group_and_sex","_",last_year,"_",this_year), caption = "Crude rate of deaths by 100,000 population by age group & sex, comparing this year & last.") %>%
+  DT::formatRound(columns = 3:11, digits = 2)
 ```
 
 ## By SIMD
 
 ```{r}
-table_5 %>%
-  filter(year %in% c(last_year, this_year)) %>%
-  output_table_with_csv_button(filename = paste0("asmr_by_SIMD_sex","_",last_year,"_",this_year), caption = "Age-standardised rate of mortality (ASMR) by SIMD quintile (1=most deprived) and sex, comparing this year & last.") %>%
-  DT::formatRound(columns = 5:7, digits = 2)
-
-
 (fig_changes_simd_sex <-
   table_5 %>%
   filter(year %in% c(last_year, this_year)) %>%
@@ -393,6 +539,101 @@ table_5 %>%
       subtitle = "Source: NRS"
       )
 )
+
+table_5 %>%
+  filter(year %in% c(last_year, this_year)) %>%
+  output_table_with_csv_button(filename = paste0("asmr_by_SIMD_sex","_",last_year,"_",this_year), caption = "Age-standardised rate of mortality (ASMR) by SIMD quintile (1=most deprived) and sex, comparing this year & last.") %>%
+  DT::formatRound(columns = 5:7, digits = 2)
 ```
 
-# Charts summarising
+## By HB
+
+```{r}
+(fig_changes_hb <-
+  five_year_averages_hb %>%
+  filter(str_ends(year_5, pattern = paste(c(last_year, this_year), collapse = "|"))) %>%
+  ggplot(data = ., aes(x=health_board, y=age_standardised_mortality_rate, fill = factor(year_5))) +
+  geom_col(position = position_dodge(width = 0.8), width=0.8, colour = "grey10") +
+  facet_wrap(~sex) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.title = element_blank()
+    ) +
+  scale_colour_manual(values = c("black","red","blue"), labels = c("All", "Male", "Female")) +
+  facet_wrap(~sex) +
+  labs(
+    x = NULL, 
+    y = "Five-year average age-standardised rate per 100,000", 
+    title = str_wrap(glue("Five-year average deaths by suicide Health Board & sex: changes between {last_year} & {this_year}")),
+    subtitle = "Source: NRS"
+    )
+)
+```
+
+## By LA
+
+
+```{r}
+(fig_changes_la <-
+  five_year_averages_la %>%
+  filter(str_ends(year_5, pattern = paste(c(last_year, this_year), collapse = "|"))) %>%
+  ggplot(data = ., aes(x=council_area, y=age_standardised_mortality_rate, fill = factor(year_5))) +
+  geom_col(position = position_dodge(width = 0.8), width=0.8, colour = "grey10") +
+  facet_wrap(~sex) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.title = element_blank()
+    ) +
+  scale_colour_manual(values = c("black","red","blue"), labels = c("All", "Male", "Female")) +
+  facet_wrap(~sex) +
+  labs(
+    x = NULL, 
+    y = "Five-year average age-standardised rate per 100,000", 
+    title = str_wrap(glue("Five-year average deaths by suicide Council Area & sex: changes between {last_year} & {this_year}")),
+    subtitle = "Source: NRS"
+    )
+)
+```
+
+
+# Proportion of intentional self-harm to undetermined intent by year
+
+This is taken from Table 9.
+
+```{r}
+table_9 <-
+  read_excel(path_to_data, sheet = "Table_9", skip = 4) %>%
+  clean_names
+
+ratio_intentional_to_undetermined <-
+  table_9 %>%
+  select(year, nature, total) %>%
+  group_by(year) %>%
+  summarise(
+    ratio = total[nature == "Intentional self harm"] / total[nature == "Undetermined intent"]
+  )
+
+(fig_ratio_intentional_to_undetermined <-
+  ratio_intentional_to_undetermined %>%
+  ggplot(aes(x = year, y = ratio)) +
+  geom_line() +
+  theme_minimal() +
+  scale_x_continuous(limits = c(2011, max(ratio_intentional_to_undetermined$year))) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1)
+    ) +
+  labs(
+    x = NULL, 
+    y = "Ratio of intentional self-harm to undetermined intent", 
+    title = str_wrap("Nature of suicide diagnosis: ratio of intentional self-harm to undetermined intent over time"),
+    subtitle = "Source: NRS"
+    )
+)
+
+ratio_intentional_to_undetermined %>%
+  output_table_with_csv_button(filename = "ratio_intentional_to_undetermined_intent", caption = "Nature of suicide diagnosis: ratio of intentional self-harm to undetermined intent over time") %>%
+  DT::formatRound(columns = 2, digits = 2)
+```
+
