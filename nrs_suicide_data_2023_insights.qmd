@@ -267,28 +267,51 @@ five_year_averages_la <-
 
 This uses data from Table 2B, with some age categories collapsed to form larger age groups (though those age groups are not the same as the 'Larger age groups' included in the NRS data).
 
+Note that I simply averaged rates between age groups when I combined them.
+
 ```{r}
+table_2a <-
+  read_excel(path_to_data, sheet = "Table_2A", skip = 4) %>%
+  clean_names %>%
+  mutate(
+    sex = factor(sex, levels = c("Persons", "Males", "Females"))
+  )
+
 table_2b <-
   read_excel(path_to_data, sheet = "Table_2B", skip = 4) %>%
   clean_names %>%
   mutate(
     sex = factor(sex, levels = c("Persons", "Males", "Females"))
   )
+# note: table 2a and 2b use slightly different age groups so the rates aren't necessarily compatible - I was hoping to infer population size by dividing rate by death counts, but they aren't provided for the same age groups...
 
-crude_rate_by_age_group_by_year <-
+
+# age_specific_numbers <-
+#   table_2a %>%
+#   pivot_longer(
+#     cols = age_0_4:age_85,
+#     names_to = "age_group",
+#     values_to = "number",
+#     names_transform = ~ str_remove_all(.x, pattern = "age\\_")
+#   )
+
+age_specific_rates <-
   table_2b %>%
   pivot_longer(
     cols = age_0:age_90_or_more,
     names_to = "age_group",
-    values_to = "crude_rate",
+    values_to = "rate",
     names_transform = ~ str_remove_all(.x, pattern = "age\\_")
-  ) %>%
+  )
+
+crude_rate_by_age_group_by_year <-
+  age_specific_rates %>%
   mutate(
     age_group_new = create_age_groups_to_match_previous_release(age_group)
   ) %>%
   group_by(year, sex, age_group_new) %>%
   summarise(
-    crude_rate = mean(crude_rate),
+    crude_rate = mean(rate),
     .groups = "drop"
   ) %>%
   (function(data_tbl) {
@@ -345,6 +368,11 @@ twenty_years_before_5_year_group <- paste0(
       subtitle = "Source: NRS"
       )
 )
+
+crude_rate_by_age_group_by_five_years %>%
+  pivot_wider(names_from = age_group_new, values_from = crude_rate) %>%
+  output_table_with_csv_button(filename = "five_year_average_crude_rate_by_age_group_and_sex", caption = "Five-year average crude rate of mortality, by age group and sex.") %>%
+  DT::formatRound(columns = 3:11, digits = 2)
 ```
 
 
